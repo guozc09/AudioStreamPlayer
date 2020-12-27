@@ -1,0 +1,14 @@
+prefix=/home/zhcguo/LinuxMount/AudioStreamPlayer/3rd/FFmpeg
+exec_prefix=${prefix}
+libdir=/home/zhcguo/LinuxMount/AudioStreamPlayer/3rd/FFmpeg/lib
+includedir=/home/zhcguo/LinuxMount/AudioStreamPlayer/3rd/FFmpeg/include
+
+Name: libswscale
+Description: FFmpeg image rescaling library
+Version: 5.8.100
+Requires: libavutil >= 56.62.100
+Requires.private: 
+Conflicts:
+Libs: -L${libdir}  -lswscale -lm
+Libs.private: 
+Cflags: -I${includedir}

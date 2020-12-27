@@ -1,0 +1,14 @@
+prefix=/home/zhcguo/LinuxMount/AudioStreamPlayer/3rd/FFmpeg
+exec_prefix=${prefix}
+libdir=/home/zhcguo/LinuxMount/AudioStreamPlayer/3rd/FFmpeg/lib
+includedir=/home/zhcguo/LinuxMount/AudioStreamPlayer/3rd/FFmpeg/include
+
+Name: libavfilter
+Description: FFmpeg audio/video filtering library
+Version: 7.94.100
+Requires: libswscale >= 5.8.100, libavformat >= 58.65.100, libavcodec >= 58.115.102, libswresample >= 3.8.100, libavutil >= 56.62.100
+Requires.private: 
+Conflicts:
+Libs: -L${libdir}  -lavfilter -pthread -lm
+Libs.private: 
+Cflags: -I${includedir}

@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+# VSCode
+.vscode
+
+# 3rd src
+3rd_src
