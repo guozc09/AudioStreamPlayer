@@ -1,7 +1,7 @@
-prefix=/home/zhcguo/LinuxMount/AudioStreamPlayer/3rd/FFmpeg
+prefix=/home/zhcguo/linuxMount/AudioStreamPlayer/3rd/FFmpeg
 exec_prefix=${prefix}
-libdir=/home/zhcguo/LinuxMount/AudioStreamPlayer/3rd/FFmpeg/lib
-includedir=/home/zhcguo/LinuxMount/AudioStreamPlayer/3rd/FFmpeg/include
+libdir=/home/zhcguo/linuxMount/AudioStreamPlayer/3rd/FFmpeg/lib
+includedir=/home/zhcguo/linuxMount/AudioStreamPlayer/3rd/FFmpeg/include
 
 Name: libavutil
 Description: FFmpeg utility library
@@ -9,6 +9,6 @@ Version: 56.62.100
 Requires: 
 Requires.private: 
 Conflicts:
-Libs: -L${libdir}  -lavutil -pthread -lm
-Libs.private: 
+Libs: -L${libdir}  -lavutil 
+Libs.private: -pthread -lm
 Cflags: -I${includedir}

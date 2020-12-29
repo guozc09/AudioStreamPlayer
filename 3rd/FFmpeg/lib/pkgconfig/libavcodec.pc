@@ -1,14 +1,14 @@
-prefix=/home/zhcguo/LinuxMount/AudioStreamPlayer/3rd/FFmpeg
+prefix=/home/zhcguo/linuxMount/AudioStreamPlayer/3rd/FFmpeg
 exec_prefix=${prefix}
-libdir=/home/zhcguo/LinuxMount/AudioStreamPlayer/3rd/FFmpeg/lib
-includedir=/home/zhcguo/LinuxMount/AudioStreamPlayer/3rd/FFmpeg/include
+libdir=/home/zhcguo/linuxMount/AudioStreamPlayer/3rd/FFmpeg/lib
+includedir=/home/zhcguo/linuxMount/AudioStreamPlayer/3rd/FFmpeg/include
 
 Name: libavcodec
 Description: FFmpeg codec library
 Version: 58.115.102
-Requires: libswresample >= 3.8.100, libavutil >= 56.62.100
-Requires.private: 
+Requires: 
+Requires.private: libswresample >= 3.8.100, libavutil >= 56.62.100
 Conflicts:
-Libs: -L${libdir}  -lavcodec -pthread -lm
-Libs.private: 
+Libs: -L${libdir}  -lavcodec 
+Libs.private: -pthread -lm
 Cflags: -I${includedir}
