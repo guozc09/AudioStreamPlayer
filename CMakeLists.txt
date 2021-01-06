@@ -11,6 +11,7 @@ message(STATUS "CMAKE_SOURCE_DIR->" ${CMAKE_SOURCE_DIR})
 message(STATUS "PROJECT_SOURCE_DIR->" ${PROJECT_SOURCE_DIR})
 message(STATUS "***********************************************************")
 
+add_subdirectory(sdk/src)
 add_subdirectory(app)
 
 configure_file(AudioStreamPlayerConfig.h.in AudioStreamPlayerConfig.h)
