@@ -4,7 +4,7 @@
  * @Author: Guo Zhc
  * @Date: 2021-01-05 18:28:29
  * @LastEditors: Guo Zhc
- * @LastEditTime: 2021-01-06 18:46:43
+ * @LastEditTime: 2021-01-07 13:35:37
  */
 #define LOG_TAG "ASResampler"
 
@@ -14,7 +14,9 @@
 extern "C" {
 #endif
 
+#include "libavutil/channel_layout.h"
 #include "libavutil/opt.h"
+#include "libavutil/samplefmt.h"
 #include "libswresample/swresample.h"
 #include "libswresample/version.h"
 
@@ -27,6 +29,8 @@ extern "C" {
 #include <sys/time.h>
 #include <unistd.h>
 
+#include <map>
+
 #include "ASPLog.h"
 
 #define ALOGD printf
@@ -34,22 +38,50 @@ extern "C" {
 #define ALOGW printf
 #define ALOGE printf
 
-Resampler::Resampler(int rate, AVSampleFormat fmt, int chl, int targetRate, AVSampleFormat targetFmt, int targetChl)
-    : mRate(rate),
-      mFmt(fmt),
-      mChl(chl),
-      mTargetRate(targetRate),
-      mTargetFmt(targetFmt),
-      mTargetChl(targetChl),
-      mBytesPerSample(0),
-      mTargetBytesPerSample(0),
-      mChannelNb(0),
-      mTargetChannelNb(0),
-      mSwrCtx(nullptr) {
+using namespace std;
+
+namespace audio_coverter {
+
+class Resampler::ResamplerPriv {
+  public:
+    ResamplerPriv();
+    ~ResamplerPriv();
+    long getSysTimeMs();
+    int getChannelNumber(AudioChannel chl);
+    static void av_log(void* ptr, int level, const char* fmt, va_list vargs);
+
+  public:
+    SampleRate mRate;
+    SampleFormat mFmt;
+    AudioChannel mChl;
+    SampleRate mTargetRate;
+    SampleFormat mTargetFmt;
+    AudioChannel mTargetChl;
+    int mBytesPerSample, mTargetBytesPerSample;
+    int mChannelNb, mTargetChannelNb;
+    SwrContext* mSwrCtx;
+    map<SampleFormat, AVSampleFormat> mMapSampleFormat;
+    map<AudioChannel, long long unsigned> mMapChannel;
+};
+
+Resampler::Resampler(SampleRate rate, SampleFormat fmt, AudioChannel chl, SampleRate targetRate, SampleFormat targetFmt,
+                     AudioChannel targetChl)
+    : m(new ResamplerPriv) {
+    m->mRate = rate;
+    m->mFmt = fmt;
+    m->mChl = chl;
+    m->mTargetRate = targetRate;
+    m->mTargetFmt = targetFmt;
+    m->mTargetChl = targetChl;
+    m->mBytesPerSample = 0;
+    m->mTargetBytesPerSample = 0;
+    m->mChannelNb = 0;
+    m->mTargetChannelNb = 0;
+    m->mSwrCtx = nullptr;
     static bool log_initialized = false;
     if (!log_initialized) {
         ALOGD("av_log_set_callback\n");
-        av_log_set_callback(av_log);
+        av_log_set_callback(ResamplerPriv::av_log);
         log_initialized = true;
     }
 
@@ -58,80 +90,116 @@ Resampler::Resampler(int rate, AVSampleFormat fmt, int chl, int targetRate, AVSa
     const int64_t phase_shift = 3;
     ALOGD("+\n");
     do {
-        if (fmt != AV_SAMPLE_FMT_U8 && fmt != AV_SAMPLE_FMT_S16 && fmt != AV_SAMPLE_FMT_S32 &&
-            fmt != AV_SAMPLE_FMT_FLT && fmt != AV_SAMPLE_FMT_DBL) {
-            ALOGE("not support format\n");
-            break;
-        }
-        if (targetFmt != AV_SAMPLE_FMT_U8 && targetFmt != AV_SAMPLE_FMT_S16 && targetFmt != AV_SAMPLE_FMT_S32 &&
-            targetFmt != AV_SAMPLE_FMT_FLT && targetFmt != AV_SAMPLE_FMT_DBL) {
-            ALOGE("not support format\n");
-            break;
-        }
         ALOGD("swr_alloc_set_opts\n");
-        mSwrCtx = swr_alloc_set_opts(mSwrCtx, mTargetChl, mTargetFmt, mTargetRate, mChl, mFmt, mRate, 0, nullptr);
+        m->mSwrCtx = swr_alloc_set_opts(m->mSwrCtx, m->mMapChannel[m->mTargetChl], m->mMapSampleFormat[m->mTargetFmt],
+                                        m->mTargetRate, m->mMapChannel[m->mChl], m->mMapSampleFormat[m->mFmt], m->mRate,
+                                        0, nullptr);
         // Speed up initialization.
-        av_opt_set_int(mSwrCtx, "phase_shift", phase_shift, 0);
-        ALOGI("mSwrCtx phase shift is %ld\n", phase_shift);
+        av_opt_set_int(m->mSwrCtx, "phase_shift", phase_shift, 0);
+        ALOGI("SwrCtx phase shift is %ld\n", phase_shift);
 
         ALOGD("swr_init\n");
-        if (mSwrCtx != nullptr) {
-            long ts = getSysTimeMs();
-            if (swr_init(mSwrCtx) < 0) {
-                swr_free(&mSwrCtx);
+        if (m->mSwrCtx != nullptr) {
+            long ts = m->getSysTimeMs();
+            if (swr_init(m->mSwrCtx) < 0) {
+                swr_free(&m->mSwrCtx);
+                m->mSwrCtx = nullptr;
                 ALOGE("swr_init failed\n");
             } else {
-                mSwrCtx = nullptr;
-                // ALOGD("alloc mSwrCtx ok(0x%x)\n", mSwrCtx);
+                ALOGD("alloc SwrCtx ok(%p)\n", m->mSwrCtx);
             }
-            ALOGI("time taken by swr_init is %ld ms.\n", getSysTimeMs() - ts);
+            ALOGI("time taken by swr_init is %ld ms.\n", m->getSysTimeMs() - ts);
         } else {
-            ALOGE("mSwrCtx alloc failed\n");
+            ALOGE("SwrCtx alloc failed\n");
         }
 
         ALOGD("init param\n");
-        mBytesPerSample = av_get_bytes_per_sample(mFmt);
-        mTargetBytesPerSample = av_get_bytes_per_sample(mTargetFmt);
-        mChannelNb = getChannelNumber(mChl);
-        mTargetChannelNb = getChannelNumber(mTargetChl);
-        ALOGD("ChannelNb[%d] TargetChannelNb[%d]\n", mChannelNb, mTargetChannelNb);
+        m->mBytesPerSample = av_get_bytes_per_sample(m->mMapSampleFormat[m->mFmt]);
+        m->mTargetBytesPerSample = av_get_bytes_per_sample(m->mMapSampleFormat[m->mTargetFmt]);
+        m->mChannelNb = m->getChannelNumber(m->mChl);
+        m->mTargetChannelNb = m->getChannelNumber(m->mTargetChl);
+        ALOGD("ChannelNb[%d] TargetChannelNb[%d]\n", m->mChannelNb, m->mTargetChannelNb);
     } while (0);
     ALOGD("-\n");
 }
 
 Resampler::~Resampler() {
-    if (mSwrCtx != nullptr) {
-        swr_free(&mSwrCtx);
+    if (m->mSwrCtx != nullptr) {
+        swr_free(&m->mSwrCtx);
     }
+    delete m;
 }
 
 int Resampler::resample(uint8_t* inAddr, int inSize, uint8_t* outAddr, int outSize) {
-    if (mSwrCtx == nullptr || inAddr == nullptr || outAddr == nullptr || inSize <= 0 || outSize <= 0) {
+    if (m->mSwrCtx == nullptr || inAddr == nullptr || outAddr == nullptr || inSize <= 0 || outSize <= 0) {
         ALOGE("bad param\n");
         return -1;
     }
 
-    int inSampleCntPerChn = inSize / (mChannelNb * mBytesPerSample);
-    int inDelaySampleCnt = swr_get_delay(mSwrCtx, mRate);
-    ALOGD("delay=%d, buffer=%d\n", inDelaySampleCnt, inSampleCntPerChn);
+    int inSampleCntPerChn = inSize / (m->mChannelNb * m->mBytesPerSample);
+    int inDelaySampleCnt = swr_get_delay(m->mSwrCtx, m->mRate);
 
     // Handling of loss of precision
     // OutSamples / OutSmapleRate = (InSamples + DelaySamples) / InSampleRate.
-    int outSampleCntPerChn = av_rescale_rnd(inDelaySampleCnt + inSampleCntPerChn, mTargetRate, mRate, AV_ROUND_UP);
+    int outSampleCntPerChn =
+        av_rescale_rnd(inDelaySampleCnt + inSampleCntPerChn, m->mTargetRate, m->mRate, AV_ROUND_UP);
 
-    if (outSize < outSampleCntPerChn * mTargetChannelNb * mTargetBytesPerSample) {
-        ALOGD("delay=%d, buffer=%d\n", inDelaySampleCnt, inSampleCntPerChn);
+    if (outSize < outSampleCntPerChn * m->mTargetChannelNb * m->mTargetBytesPerSample) {
+        ALOGD("inDelaySampleCnt=%d, inSampleCntPerChn=%d\n", inDelaySampleCnt, inSampleCntPerChn);
         ALOGE("out buffer(%d/%d) is too small\n", outSize,
-              outSampleCntPerChn * mTargetChannelNb * mTargetBytesPerSample);
+              outSampleCntPerChn * m->mTargetChannelNb * m->mTargetBytesPerSample);
         return 0;
     }
 
-    int nbOutSamplesPerChn = swr_convert(mSwrCtx, &outAddr, outSampleCntPerChn, (const uint8_t**)&inAddr, inSampleCntPerChn);
-    int sizeOut = nbOutSamplesPerChn * mTargetChannelNb * mTargetBytesPerSample;
+    int nbOutSamplesPerChn = swr_convert(m->mSwrCtx, &outAddr, outSampleCntPerChn, (const uint8_t**)&inAddr, inSampleCntPerChn);
+    int sizeOut = nbOutSamplesPerChn * m->mTargetChannelNb * m->mTargetBytesPerSample;
     return sizeOut;
 }
 
-long Resampler::getSysTimeMs() {
+Resampler::ResamplerPriv::ResamplerPriv() {
+    // Initializes the sample format.
+    mMapSampleFormat[SAMPLE_FMT_NONE] = AV_SAMPLE_FMT_NONE;
+    mMapSampleFormat[SAMPLE_FMT_U8] = AV_SAMPLE_FMT_U8;
+    mMapSampleFormat[SAMPLE_FMT_S16] = AV_SAMPLE_FMT_S16;
+    mMapSampleFormat[SAMPLE_FMT_S32] = AV_SAMPLE_FMT_S32;
+    mMapSampleFormat[SAMPLE_FMT_FLT] = AV_SAMPLE_FMT_FLT;
+    mMapSampleFormat[SAMPLE_FMT_DBL] = AV_SAMPLE_FMT_DBL;
+
+    // Initializes the channel.
+    mMapChannel[CH_LAYOUT_MONO] = AV_CH_LAYOUT_MONO;
+    mMapChannel[CH_LAYOUT_STEREO] = AV_CH_LAYOUT_STEREO;
+    mMapChannel[CH_LAYOUT_2POINT1] = AV_CH_LAYOUT_2POINT1;
+    mMapChannel[CH_LAYOUT_2_1] = AV_CH_LAYOUT_2_1;
+    mMapChannel[CH_LAYOUT_SURROUND] = AV_CH_LAYOUT_SURROUND;
+    mMapChannel[CH_LAYOUT_3POINT1] = AV_CH_LAYOUT_3POINT1;
+    mMapChannel[CH_LAYOUT_4POINT0] = AV_CH_LAYOUT_4POINT0;
+    mMapChannel[CH_LAYOUT_4POINT1] = AV_CH_LAYOUT_4POINT1;
+    mMapChannel[CH_LAYOUT_2_2] = AV_CH_LAYOUT_2_2;
+    mMapChannel[CH_LAYOUT_QUAD] = AV_CH_LAYOUT_QUAD;
+    mMapChannel[CH_LAYOUT_5POINT0] = AV_CH_LAYOUT_5POINT0;
+    mMapChannel[CH_LAYOUT_5POINT1] = AV_CH_LAYOUT_5POINT1;
+    mMapChannel[CH_LAYOUT_5POINT0_BACK] = AV_CH_LAYOUT_5POINT0_BACK;
+    mMapChannel[CH_LAYOUT_5POINT1_BACK] = AV_CH_LAYOUT_5POINT1_BACK;
+    mMapChannel[CH_LAYOUT_6POINT0] = AV_CH_LAYOUT_6POINT0;
+    mMapChannel[CH_LAYOUT_6POINT0_FRONT] = AV_CH_LAYOUT_6POINT0_FRONT;
+    mMapChannel[CH_LAYOUT_HEXAGONAL] = AV_CH_LAYOUT_HEXAGONAL;
+    mMapChannel[CH_LAYOUT_6POINT1] = AV_CH_LAYOUT_6POINT1;
+    mMapChannel[CH_LAYOUT_6POINT1_BACK] = AV_CH_LAYOUT_6POINT1_BACK;
+    mMapChannel[CH_LAYOUT_6POINT1_FRONT] = AV_CH_LAYOUT_6POINT1_FRONT;
+    mMapChannel[CH_LAYOUT_7POINT0] = AV_CH_LAYOUT_7POINT0;
+    mMapChannel[CH_LAYOUT_7POINT0_FRONT] = AV_CH_LAYOUT_7POINT0_FRONT;
+    mMapChannel[CH_LAYOUT_7POINT1] = AV_CH_LAYOUT_7POINT1;
+    mMapChannel[CH_LAYOUT_7POINT1_WIDE] = AV_CH_LAYOUT_7POINT1_WIDE;
+    mMapChannel[CH_LAYOUT_7POINT1_WIDE_BACK] = AV_CH_LAYOUT_7POINT1_WIDE_BACK;
+    mMapChannel[CH_LAYOUT_OCTAGONAL] = AV_CH_LAYOUT_OCTAGONAL;
+    mMapChannel[CH_LAYOUT_HEXADECAGONAL] = AV_CH_LAYOUT_HEXADECAGONAL;
+    mMapChannel[CH_LAYOUT_STEREO_DOWNMIX] = AV_CH_LAYOUT_STEREO_DOWNMIX;
+    mMapChannel[CH_LAYOUT_22POINT2] = AV_CH_LAYOUT_22POINT2;
+}
+
+Resampler::ResamplerPriv::~ResamplerPriv() {}
+
+long Resampler::ResamplerPriv::getSysTimeMs() {
     struct timeval tv = {0};
     long long time = 0LL;
     if (gettimeofday(&tv, nullptr) != 0) {
@@ -143,33 +211,33 @@ long Resampler::getSysTimeMs() {
     return (long)(time);
 }
 
-int Resampler::getChannelNumber(int chl) {
+int Resampler::ResamplerPriv::getChannelNumber(AudioChannel chl) {
     int chs = 0;
     switch (chl) {
-        case AV_CH_LAYOUT_MONO:
+        case CH_LAYOUT_MONO:
             chs = 1;
             break;
-        case AV_CH_LAYOUT_STEREO:
-        case AV_CH_LAYOUT_STEREO_DOWNMIX:
+        case CH_LAYOUT_STEREO:
+        case CH_LAYOUT_STEREO_DOWNMIX:
             chs = 2;
             break;
-        case AV_CH_LAYOUT_3POINT1:
-        case AV_CH_LAYOUT_4POINT0:
-        case AV_CH_LAYOUT_QUAD:
-        case AV_CH_LAYOUT_2_2:
+        case CH_LAYOUT_3POINT1:
+        case CH_LAYOUT_4POINT0:
+        case CH_LAYOUT_QUAD:
+        case CH_LAYOUT_2_2:
             chs = 4;
             break;
-        case AV_CH_LAYOUT_5POINT1:
-        case AV_CH_LAYOUT_5POINT1_BACK:
-        case AV_CH_LAYOUT_6POINT0:
-        case AV_CH_LAYOUT_6POINT0_FRONT:
-        case AV_CH_LAYOUT_HEXAGONAL:
+        case CH_LAYOUT_5POINT1:
+        case CH_LAYOUT_5POINT1_BACK:
+        case CH_LAYOUT_6POINT0:
+        case CH_LAYOUT_6POINT0_FRONT:
+        case CH_LAYOUT_HEXAGONAL:
             chs = 6;
             break;
-        case AV_CH_LAYOUT_7POINT1:
-        case AV_CH_LAYOUT_7POINT1_WIDE:
-        case AV_CH_LAYOUT_7POINT1_WIDE_BACK:
-        case AV_CH_LAYOUT_OCTAGONAL:
+        case CH_LAYOUT_7POINT1:
+        case CH_LAYOUT_7POINT1_WIDE:
+        case CH_LAYOUT_7POINT1_WIDE_BACK:
+        case CH_LAYOUT_OCTAGONAL:
             chs = 8;
             break;
         default:
@@ -179,7 +247,7 @@ int Resampler::getChannelNumber(int chl) {
     return chs;
 }
 
-void Resampler::av_log(void* ptr, int level, const char* fmt, va_list vargs) {
+void Resampler::ResamplerPriv::av_log(void* ptr, int level, const char* fmt, va_list vargs) {
     char msg[512];
     memset(msg, 0x00, 512);
     vsnprintf(msg, 512 - 1, fmt, vargs);
@@ -200,3 +268,5 @@ void Resampler::av_log(void* ptr, int level, const char* fmt, va_list vargs) {
     }
     return;
 }
+
+}  // namespace audio_coverter
