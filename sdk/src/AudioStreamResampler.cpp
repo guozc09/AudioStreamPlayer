@@ -4,7 +4,7 @@
  * @Author: Guo Zhc
  * @Date: 2021-01-05 18:28:29
  * @LastEditors: Guo Zhc
- * @LastEditTime: 2021-01-09 16:46:05
+ * @LastEditTime: 2021-01-10 00:52:07
  */
 #define LOG_TAG "ASResampler"
 
@@ -31,10 +31,9 @@ extern "C" {
 
 #include <map>
 
-#define ALOGD printf
-#define ALOGI printf
-#define ALOGW printf
-#define ALOGE printf
+#include "Asplog.h"
+
+static LoggerPtr logger(Logger::getLogger(__FILE__));
 
 using namespace std;
 
@@ -78,47 +77,47 @@ Resampler::Resampler(SampleRate rate, SampleFormat fmt, AudioChannel chl, Sample
     m->mSwrCtx = nullptr;
     static bool log_initialized = false;
     if (!log_initialized) {
-        ALOGD("av_log_set_callback\n");
+        LOG_D("av_log_set_callback\n");
         av_log_set_callback(ResamplerPriv::av_log);
         log_initialized = true;
     }
 
-    ALOGI("libswresample verion:%d.%d\n", LIBSWRESAMPLE_VERSION_MAJOR, LIBSWRESAMPLE_VERSION_MINOR);
+    LOG_I("libswresample verion:%d.%d\n", LIBSWRESAMPLE_VERSION_MAJOR, LIBSWRESAMPLE_VERSION_MINOR);
 
     const int64_t phase_shift = 3;
-    ALOGD("+\n");
+    LOG_D("+\n");
     do {
-        ALOGD("swr_alloc_set_opts\n");
+        LOG_D("swr_alloc_set_opts\n");
         m->mSwrCtx = swr_alloc_set_opts(m->mSwrCtx, m->mMapChannel[m->mTargetChl], m->mMapSampleFormat[m->mTargetFmt],
                                         m->mTargetRate, m->mMapChannel[m->mChl], m->mMapSampleFormat[m->mFmt], m->mRate,
                                         0, nullptr);
         // Speed up initialization.
         av_opt_set_int(m->mSwrCtx, "phase_shift", phase_shift, 0);
-        ALOGI("SwrCtx phase shift is %ld\n", phase_shift);
+        LOG_I("SwrCtx phase shift is %ld\n", phase_shift);
 
-        ALOGD("swr_init\n");
+        LOG_D("swr_init\n");
         if (m->mSwrCtx != nullptr) {
             long ts = m->getSysTimeMs();
             if (swr_init(m->mSwrCtx) < 0) {
                 swr_free(&m->mSwrCtx);
                 m->mSwrCtx = nullptr;
-                ALOGE("swr_init failed\n");
+                LOG_E("swr_init failed\n");
             } else {
-                ALOGD("alloc SwrCtx ok(%p)\n", m->mSwrCtx);
+                LOG_D("alloc SwrCtx ok(%p)\n", m->mSwrCtx);
             }
-            ALOGI("time taken by swr_init is %ld ms.\n", m->getSysTimeMs() - ts);
+            LOG_I("time taken by swr_init is %ld ms.\n", m->getSysTimeMs() - ts);
         } else {
-            ALOGE("SwrCtx alloc failed\n");
+            LOG_E("SwrCtx alloc failed\n");
         }
 
-        ALOGD("init param\n");
+        LOG_D("init param\n");
         m->mBytesPerSample = av_get_bytes_per_sample(m->mMapSampleFormat[m->mFmt]);
         m->mTargetBytesPerSample = av_get_bytes_per_sample(m->mMapSampleFormat[m->mTargetFmt]);
         m->mChannelNb = m->getChannelNumber(m->mChl);
         m->mTargetChannelNb = m->getChannelNumber(m->mTargetChl);
-        ALOGD("ChannelNb[%d] TargetChannelNb[%d]\n", m->mChannelNb, m->mTargetChannelNb);
+        LOG_D("ChannelNb[%d] TargetChannelNb[%d]\n", m->mChannelNb, m->mTargetChannelNb);
     } while (0);
-    ALOGD("-\n");
+    LOG_D("-\n");
 }
 
 Resampler::~Resampler() {
@@ -130,7 +129,7 @@ Resampler::~Resampler() {
 
 int Resampler::resample(uint8_t* inAddr, int inSize, uint8_t* outAddr, int outSize) {
     if (m->mSwrCtx == nullptr || inAddr == nullptr || outAddr == nullptr || inSize <= 0 || outSize <= 0) {
-        ALOGE("bad param\n");
+        LOG_E("bad param\n");
         return -1;
     }
 
@@ -143,8 +142,8 @@ int Resampler::resample(uint8_t* inAddr, int inSize, uint8_t* outAddr, int outSi
         av_rescale_rnd(inDelaySampleCnt + inSampleCntPerChn, m->mTargetRate, m->mRate, AV_ROUND_UP);
 
     if (outSize < outSampleCntPerChn * m->mTargetChannelNb * m->mTargetBytesPerSample) {
-        ALOGD("inDelaySampleCnt=%d, inSampleCntPerChn=%d\n", inDelaySampleCnt, inSampleCntPerChn);
-        ALOGE("out buffer(%d/%d) is too small\n", outSize,
+        LOG_D("inDelaySampleCnt=%d, inSampleCntPerChn=%d\n", inDelaySampleCnt, inSampleCntPerChn);
+        LOG_E("out buffer(%d/%d) is too small\n", outSize,
               outSampleCntPerChn * m->mTargetChannelNb * m->mTargetBytesPerSample);
         return 0;
     }
@@ -201,7 +200,7 @@ long Resampler::ResamplerPriv::getSysTimeMs() {
     struct timeval tv = {0};
     long long time = 0LL;
     if (gettimeofday(&tv, nullptr) != 0) {
-        ALOGW("gettimeofday error!!");
+        LOG_W("gettimeofday error!!");
         return -1;
     }
 
@@ -251,17 +250,17 @@ void Resampler::ResamplerPriv::av_log(void* ptr, int level, const char* fmt, va_
     vsnprintf(msg, 512 - 1, fmt, vargs);
     switch (level) {
         case AV_LOG_INFO:
-            ALOGI("%s", msg);
+            LOG_I("%s", msg);
             break;
         case AV_LOG_WARNING:
-            ALOGW("%s", msg);
+            LOG_W("%s", msg);
             break;
         case AV_LOG_ERROR:
-            ALOGE("%s", msg);
+            LOG_E("%s", msg);
             break;
         case AV_LOG_DEBUG:
         default:
-            ALOGD("%s", msg);
+            LOG_D("%s", msg);
             break;
     }
     return;
