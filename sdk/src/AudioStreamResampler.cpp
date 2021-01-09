@@ -4,7 +4,7 @@
  * @Author: Guo Zhc
  * @Date: 2021-01-05 18:28:29
  * @LastEditors: Guo Zhc
- * @LastEditTime: 2021-01-07 13:35:37
+ * @LastEditTime: 2021-01-09 16:46:05
  */
 #define LOG_TAG "ASResampler"
 
@@ -30,8 +30,6 @@ extern "C" {
 #include <unistd.h>
 
 #include <map>
-
-#include "ASPLog.h"
 
 #define ALOGD printf
 #define ALOGI printf

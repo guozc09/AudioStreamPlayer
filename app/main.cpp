@@ -3,12 +3,11 @@
  * @Author: Guo Zhc
  * @Date: 2021-01-05 13:33:47
  * @LastEditors: Guo Zhc
- * @LastEditTime: 2021-01-07 13:31:28
+ * @LastEditTime: 2021-01-09 16:45:26
  */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "ASPLog.h"
 #include "AudioStreamResampler.h"
 
 using namespace std;

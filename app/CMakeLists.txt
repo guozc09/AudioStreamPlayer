@@ -14,9 +14,8 @@ include_directories(${PROJECT_SOURCE_DIR}/sdk/include ${FFmpegInclude})
 link_directories(${LINK_PATH})
 
 # add the executable
-add_executable(AudioStreamPlayerApp
-    ASPLogImpl.cpp
-    main.cpp)
+aux_source_directory(${PROJECT_SOURCE_DIR}/app MAIN_SRC)
+add_executable(AudioStreamPlayerApp ${MAIN_SRC})
 
 target_link_libraries(AudioStreamPlayerApp libAudioStreamPlayerSdk.a)
 set(mFFmpeg avutil swresample)
