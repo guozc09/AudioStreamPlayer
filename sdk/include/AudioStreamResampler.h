@@ -4,7 +4,7 @@
  * @Author: Guo Zhc
  * @Date: 2021-01-05 18:28:33
  * @LastEditors: Guo Zhc
- * @LastEditTime: 2021-01-11 10:15:55
+ * @LastEditTime: 2021-01-11 15:24:20
  */
 
 #ifndef AUDIO_STREAM_RESAMPLER_H
@@ -30,8 +30,7 @@ enum SampleRate {
 };
 
 enum SampleFormat {
-    SAMPLE_FMT_NONE = -1,
-    SAMPLE_FMT_U8,          ///< unsigned 8 bits
+    SAMPLE_FMT_U8 = 0,      ///< unsigned 8 bits
     SAMPLE_FMT_S16,         ///< signed 16 bits
     SAMPLE_FMT_S32,         ///< signed 32 bits
     SAMPLE_FMT_FLT,         ///< float

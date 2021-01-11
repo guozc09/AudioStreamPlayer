@@ -4,7 +4,7 @@
  * @Author: Guo Zhc
  * @Date: 2021-01-05 18:28:29
  * @LastEditors: Guo Zhc
- * @LastEditTime: 2021-01-11 10:55:55
+ * @LastEditTime: 2021-01-11 16:12:22
  */
 #define LOG_TAG "ASResampler"
 
@@ -41,10 +41,9 @@ namespace audio_coverter {
 
 class AudioStreamResampler::ResamplerPriv {
   public:
-    ResamplerPriv();
-    ~ResamplerPriv();
+    ResamplerPriv() = default;
+    ~ResamplerPriv() = default;
     long getSysTimeMs();
-    int getChannelNumber(AudioChannel chl);
 
   public:
     SampleRate mRate;
@@ -56,12 +55,47 @@ class AudioStreamResampler::ResamplerPriv {
     int mBytesPerSample, mTargetBytesPerSample;
     int mChannelNb, mTargetChannelNb;
     SwrContext* mSwrCtx;
-    static map<SampleFormat, AVSampleFormat> mMapSampleFormat;
-    static map<AudioChannel, long long unsigned> mMapChannel;
 };
 
-map<SampleFormat, AVSampleFormat> AudioStreamResampler::ResamplerPriv::mMapSampleFormat;
-map<AudioChannel, long long unsigned> AudioStreamResampler::ResamplerPriv::mMapChannel;
+struct AudioChannelParam {
+    long long unsigned int channelMask;
+    int channelNb;
+};
+
+static AudioChannelParam gAudioChannel[] = {
+    {AV_CH_LAYOUT_MONO, 1},
+    {AV_CH_LAYOUT_STEREO, 2},
+    {AV_CH_LAYOUT_2POINT1, 3},
+    {AV_CH_LAYOUT_2_1, 3},
+    {AV_CH_LAYOUT_SURROUND, 3},
+    {AV_CH_LAYOUT_3POINT1, 4},
+    {AV_CH_LAYOUT_4POINT0, 4},
+    {AV_CH_LAYOUT_4POINT1, 5},
+    {AV_CH_LAYOUT_2_2, 4},
+    {AV_CH_LAYOUT_QUAD, 4},
+    {AV_CH_LAYOUT_5POINT0, 5},
+    {AV_CH_LAYOUT_5POINT1, 6},
+    {AV_CH_LAYOUT_5POINT0_BACK, 5},
+    {AV_CH_LAYOUT_5POINT1_BACK, 6},
+    {AV_CH_LAYOUT_6POINT0, 6},
+    {AV_CH_LAYOUT_6POINT0_FRONT, 6},
+    {AV_CH_LAYOUT_HEXAGONAL, 6},
+    {AV_CH_LAYOUT_6POINT1, 7},
+    {AV_CH_LAYOUT_6POINT1_BACK, 7},
+    {AV_CH_LAYOUT_6POINT1_FRONT, 7},
+    {AV_CH_LAYOUT_7POINT0, 7},
+    {AV_CH_LAYOUT_7POINT0_FRONT, 7},
+    {AV_CH_LAYOUT_7POINT1, 8},
+    {AV_CH_LAYOUT_7POINT1_WIDE, 8},
+    {AV_CH_LAYOUT_7POINT1_WIDE_BACK, 8},
+    {AV_CH_LAYOUT_OCTAGONAL, 8},
+    {AV_CH_LAYOUT_HEXADECAGONAL, 16},
+    {AV_CH_LAYOUT_STEREO_DOWNMIX, 2},
+    {AV_CH_LAYOUT_22POINT2, 24}
+};
+
+static enum AVSampleFormat gSampleFormat[] = {AV_SAMPLE_FMT_U8, AV_SAMPLE_FMT_S16, AV_SAMPLE_FMT_S32, AV_SAMPLE_FMT_FLT,
+                                              AV_SAMPLE_FMT_DBL};
 
 AudioStreamResampler::AudioStreamResampler(SampleRate rate, SampleFormat fmt, AudioChannel chl, SampleRate targetRate,
                                            SampleFormat targetFmt, AudioChannel targetChl)
@@ -84,9 +118,9 @@ AudioStreamResampler::AudioStreamResampler(SampleRate rate, SampleFormat fmt, Au
     LOG_D("+\n");
     do {
         LOG_D("swr_alloc_set_opts\n");
-        m->mSwrCtx = swr_alloc_set_opts(m->mSwrCtx, m->mMapChannel[m->mTargetChl], m->mMapSampleFormat[m->mTargetFmt],
-                                        m->mTargetRate, m->mMapChannel[m->mChl], m->mMapSampleFormat[m->mFmt], m->mRate,
-                                        0, nullptr);
+        m->mSwrCtx = swr_alloc_set_opts(
+            m->mSwrCtx, gAudioChannel[m->mTargetChl].channelMask, gSampleFormat[m->mTargetFmt], m->mTargetRate,
+            gAudioChannel[m->mChl].channelMask, gSampleFormat[m->mFmt], m->mRate, 0, nullptr);
         // Speed up initialization.
         av_opt_set_int(m->mSwrCtx, "phase_shift", phase_shift, 0);
         LOG_I("SwrCtx phase shift is %ld\n", phase_shift);
@@ -107,10 +141,10 @@ AudioStreamResampler::AudioStreamResampler(SampleRate rate, SampleFormat fmt, Au
         }
 
         LOG_D("init param\n");
-        m->mBytesPerSample = av_get_bytes_per_sample(m->mMapSampleFormat[m->mFmt]);
-        m->mTargetBytesPerSample = av_get_bytes_per_sample(m->mMapSampleFormat[m->mTargetFmt]);
-        m->mChannelNb = m->getChannelNumber(m->mChl);
-        m->mTargetChannelNb = m->getChannelNumber(m->mTargetChl);
+        m->mBytesPerSample = av_get_bytes_per_sample(gSampleFormat[m->mFmt]);
+        m->mTargetBytesPerSample = av_get_bytes_per_sample(gSampleFormat[m->mTargetFmt]);
+        m->mChannelNb = gAudioChannel[m->mChl].channelNb;
+        m->mTargetChannelNb = gAudioChannel[m->mTargetChl].channelNb;
         LOG_D("ChannelNb[%d] TargetChannelNb[%d]\n", m->mChannelNb, m->mTargetChannelNb);
     } while (0);
     LOG_D("-\n");
@@ -150,54 +184,6 @@ int AudioStreamResampler::resample(uint8_t* inAddr, size_t inSize, uint8_t* outA
     return sizeOut;
 }
 
-AudioStreamResampler::ResamplerPriv::ResamplerPriv() {
-    static bool isInitializedMap = false;
-    if (!isInitializedMap) {
-        // Initializes the sample format.
-        mMapSampleFormat[SAMPLE_FMT_NONE] = AV_SAMPLE_FMT_NONE;
-        mMapSampleFormat[SAMPLE_FMT_U8] = AV_SAMPLE_FMT_U8;
-        mMapSampleFormat[SAMPLE_FMT_S16] = AV_SAMPLE_FMT_S16;
-        mMapSampleFormat[SAMPLE_FMT_S32] = AV_SAMPLE_FMT_S32;
-        mMapSampleFormat[SAMPLE_FMT_FLT] = AV_SAMPLE_FMT_FLT;
-        mMapSampleFormat[SAMPLE_FMT_DBL] = AV_SAMPLE_FMT_DBL;
-
-        // Initializes the channel.
-        mMapChannel[CH_LAYOUT_MONO] = AV_CH_LAYOUT_MONO;
-        mMapChannel[CH_LAYOUT_STEREO] = AV_CH_LAYOUT_STEREO;
-        mMapChannel[CH_LAYOUT_2POINT1] = AV_CH_LAYOUT_2POINT1;
-        mMapChannel[CH_LAYOUT_2_1] = AV_CH_LAYOUT_2_1;
-        mMapChannel[CH_LAYOUT_SURROUND] = AV_CH_LAYOUT_SURROUND;
-        mMapChannel[CH_LAYOUT_3POINT1] = AV_CH_LAYOUT_3POINT1;
-        mMapChannel[CH_LAYOUT_4POINT0] = AV_CH_LAYOUT_4POINT0;
-        mMapChannel[CH_LAYOUT_4POINT1] = AV_CH_LAYOUT_4POINT1;
-        mMapChannel[CH_LAYOUT_2_2] = AV_CH_LAYOUT_2_2;
-        mMapChannel[CH_LAYOUT_QUAD] = AV_CH_LAYOUT_QUAD;
-        mMapChannel[CH_LAYOUT_5POINT0] = AV_CH_LAYOUT_5POINT0;
-        mMapChannel[CH_LAYOUT_5POINT1] = AV_CH_LAYOUT_5POINT1;
-        mMapChannel[CH_LAYOUT_5POINT0_BACK] = AV_CH_LAYOUT_5POINT0_BACK;
-        mMapChannel[CH_LAYOUT_5POINT1_BACK] = AV_CH_LAYOUT_5POINT1_BACK;
-        mMapChannel[CH_LAYOUT_6POINT0] = AV_CH_LAYOUT_6POINT0;
-        mMapChannel[CH_LAYOUT_6POINT0_FRONT] = AV_CH_LAYOUT_6POINT0_FRONT;
-        mMapChannel[CH_LAYOUT_HEXAGONAL] = AV_CH_LAYOUT_HEXAGONAL;
-        mMapChannel[CH_LAYOUT_6POINT1] = AV_CH_LAYOUT_6POINT1;
-        mMapChannel[CH_LAYOUT_6POINT1_BACK] = AV_CH_LAYOUT_6POINT1_BACK;
-        mMapChannel[CH_LAYOUT_6POINT1_FRONT] = AV_CH_LAYOUT_6POINT1_FRONT;
-        mMapChannel[CH_LAYOUT_7POINT0] = AV_CH_LAYOUT_7POINT0;
-        mMapChannel[CH_LAYOUT_7POINT0_FRONT] = AV_CH_LAYOUT_7POINT0_FRONT;
-        mMapChannel[CH_LAYOUT_7POINT1] = AV_CH_LAYOUT_7POINT1;
-        mMapChannel[CH_LAYOUT_7POINT1_WIDE] = AV_CH_LAYOUT_7POINT1_WIDE;
-        mMapChannel[CH_LAYOUT_7POINT1_WIDE_BACK] = AV_CH_LAYOUT_7POINT1_WIDE_BACK;
-        mMapChannel[CH_LAYOUT_OCTAGONAL] = AV_CH_LAYOUT_OCTAGONAL;
-        mMapChannel[CH_LAYOUT_HEXADECAGONAL] = AV_CH_LAYOUT_HEXADECAGONAL;
-        mMapChannel[CH_LAYOUT_STEREO_DOWNMIX] = AV_CH_LAYOUT_STEREO_DOWNMIX;
-        mMapChannel[CH_LAYOUT_22POINT2] = AV_CH_LAYOUT_22POINT2;
-
-        isInitializedMap = true;
-    }
-}
-
-AudioStreamResampler::ResamplerPriv::~ResamplerPriv() {}
-
 long AudioStreamResampler::ResamplerPriv::getSysTimeMs() {
     struct timeval tv = {0};
     long long time = 0LL;
@@ -208,42 +194,6 @@ long AudioStreamResampler::ResamplerPriv::getSysTimeMs() {
 
     time = ((long long)tv.tv_sec) * 1000 + tv.tv_usec / 1000;
     return (long)(time);
-}
-
-int AudioStreamResampler::ResamplerPriv::getChannelNumber(AudioChannel chl) {
-    int chs = 0;
-    switch (chl) {
-        case CH_LAYOUT_MONO:
-            chs = 1;
-            break;
-        case CH_LAYOUT_STEREO:
-        case CH_LAYOUT_STEREO_DOWNMIX:
-            chs = 2;
-            break;
-        case CH_LAYOUT_3POINT1:
-        case CH_LAYOUT_4POINT0:
-        case CH_LAYOUT_QUAD:
-        case CH_LAYOUT_2_2:
-            chs = 4;
-            break;
-        case CH_LAYOUT_5POINT1:
-        case CH_LAYOUT_5POINT1_BACK:
-        case CH_LAYOUT_6POINT0:
-        case CH_LAYOUT_6POINT0_FRONT:
-        case CH_LAYOUT_HEXAGONAL:
-            chs = 6;
-            break;
-        case CH_LAYOUT_7POINT1:
-        case CH_LAYOUT_7POINT1_WIDE:
-        case CH_LAYOUT_7POINT1_WIDE_BACK:
-        case CH_LAYOUT_OCTAGONAL:
-            chs = 8;
-            break;
-        default:
-            chs = -1;
-            break;
-    }
-    return chs;
 }
 
 }  // namespace audio_coverter
