@@ -3,7 +3,7 @@
  * @Author: Guo Zhc
  * @Date: 2021-01-05 13:33:47
  * @LastEditors: Guo Zhc
- * @LastEditTime: 2021-01-10 00:26:27
+ * @LastEditTime: 2021-01-11 10:14:27
  */
 #include <stdint.h>
 #include <stdio.h>
@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
     uint8_t tmpinbuf[1024];
     uint8_t tmpoutbuf[1024];
     int ret = 0;
-    Resampler resample(SAMPLE_RATE_44_1K, SAMPLE_FMT_FLT, CH_LAYOUT_STEREO, SAMPLE_RATE_16K, SAMPLE_FMT_FLT, CH_LAYOUT_STEREO);
+    AudioStreamResampler resample(SAMPLE_RATE_44_1K, SAMPLE_FMT_FLT, CH_LAYOUT_STEREO, SAMPLE_RATE_16K, SAMPLE_FMT_FLT, CH_LAYOUT_STEREO);
     while (true) {
         ret = fread(tmpinbuf, 1, sizeof(tmpinbuf), ifs);
         if (ret <= 0) {

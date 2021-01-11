@@ -4,13 +4,14 @@
  * @Author: Guo Zhc
  * @Date: 2021-01-05 18:28:33
  * @LastEditors: Guo Zhc
- * @LastEditTime: 2021-01-07 13:33:42
+ * @LastEditTime: 2021-01-11 10:15:55
  */
 
 #ifndef AUDIO_STREAM_RESAMPLER_H
 #define AUDIO_STREAM_RESAMPLER_H
 
 #include <stdint.h>
+#include <cstddef>
 
 namespace audio_coverter {
 
@@ -69,11 +70,11 @@ enum AudioChannel {
     CH_LAYOUT_22POINT2,
 };
 
-class Resampler {
+class AudioStreamResampler {
   public:
-    Resampler(SampleRate rate, SampleFormat fmt, AudioChannel chl, SampleRate targetRate, SampleFormat targetFmt, AudioChannel targetChl);
-    ~Resampler();
-    int resample(uint8_t* inAddr, int inSize, uint8_t* outAddr, int outSize);
+    AudioStreamResampler(SampleRate rate, SampleFormat fmt, AudioChannel chl, SampleRate targetRate, SampleFormat targetFmt, AudioChannel targetChl);
+    ~AudioStreamResampler();
+    int resample(uint8_t* inAddr, size_t inSize, uint8_t* outAddr, size_t outSize);
 
   private:
     class ResamplerPriv;
