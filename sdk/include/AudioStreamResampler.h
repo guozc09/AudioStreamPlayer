@@ -4,7 +4,7 @@
  * @Author: Guo Zhc
  * @Date: 2021-01-05 18:28:33
  * @LastEditors: Guo Zhc
- * @LastEditTime: 2021-01-11 15:24:20
+ * @LastEditTime: 2021-01-13 11:15:13
  */
 
 #ifndef AUDIO_STREAM_RESAMPLER_H
@@ -37,7 +37,7 @@ enum SampleFormat {
     SAMPLE_FMT_DBL,         ///< double
 };
 
-enum AudioChannel {
+enum SampleChannel {
     CH_LAYOUT_MONO = 0,
     CH_LAYOUT_STEREO,
     CH_LAYOUT_2POINT1,
@@ -71,7 +71,7 @@ enum AudioChannel {
 
 class AudioStreamResampler {
   public:
-    AudioStreamResampler(SampleRate rate, SampleFormat fmt, AudioChannel chl, SampleRate targetRate, SampleFormat targetFmt, AudioChannel targetChl);
+    AudioStreamResampler(SampleRate rate, SampleFormat fmt, SampleChannel chl, SampleRate targetRate, SampleFormat targetFmt, SampleChannel targetChl);
     ~AudioStreamResampler();
     int resample(uint8_t* inAddr, size_t inSize, uint8_t* outAddr, size_t outSize);
 

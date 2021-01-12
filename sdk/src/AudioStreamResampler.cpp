@@ -4,7 +4,7 @@
  * @Author: Guo Zhc
  * @Date: 2021-01-05 18:28:29
  * @LastEditors: Guo Zhc
- * @LastEditTime: 2021-01-11 16:12:22
+ * @LastEditTime: 2021-01-13 11:15:50
  */
 #define LOG_TAG "ASResampler"
 
@@ -48,57 +48,59 @@ class AudioStreamResampler::ResamplerPriv {
   public:
     SampleRate mRate;
     SampleFormat mFmt;
-    AudioChannel mChl;
+    SampleChannel mChl;
     SampleRate mTargetRate;
     SampleFormat mTargetFmt;
-    AudioChannel mTargetChl;
+    SampleChannel mTargetChl;
     int mBytesPerSample, mTargetBytesPerSample;
     int mChannelNb, mTargetChannelNb;
     SwrContext* mSwrCtx;
 };
 
 struct AudioChannelParam {
-    long long unsigned int channelMask;
+    unsigned long long channelMask;
     int channelNb;
 };
 
-static AudioChannelParam gAudioChannel[] = {
-    {AV_CH_LAYOUT_MONO, 1},
-    {AV_CH_LAYOUT_STEREO, 2},
-    {AV_CH_LAYOUT_2POINT1, 3},
-    {AV_CH_LAYOUT_2_1, 3},
-    {AV_CH_LAYOUT_SURROUND, 3},
-    {AV_CH_LAYOUT_3POINT1, 4},
-    {AV_CH_LAYOUT_4POINT0, 4},
-    {AV_CH_LAYOUT_4POINT1, 5},
-    {AV_CH_LAYOUT_2_2, 4},
-    {AV_CH_LAYOUT_QUAD, 4},
-    {AV_CH_LAYOUT_5POINT0, 5},
-    {AV_CH_LAYOUT_5POINT1, 6},
-    {AV_CH_LAYOUT_5POINT0_BACK, 5},
-    {AV_CH_LAYOUT_5POINT1_BACK, 6},
-    {AV_CH_LAYOUT_6POINT0, 6},
-    {AV_CH_LAYOUT_6POINT0_FRONT, 6},
-    {AV_CH_LAYOUT_HEXAGONAL, 6},
-    {AV_CH_LAYOUT_6POINT1, 7},
-    {AV_CH_LAYOUT_6POINT1_BACK, 7},
-    {AV_CH_LAYOUT_6POINT1_FRONT, 7},
-    {AV_CH_LAYOUT_7POINT0, 7},
-    {AV_CH_LAYOUT_7POINT0_FRONT, 7},
-    {AV_CH_LAYOUT_7POINT1, 8},
-    {AV_CH_LAYOUT_7POINT1_WIDE, 8},
-    {AV_CH_LAYOUT_7POINT1_WIDE_BACK, 8},
-    {AV_CH_LAYOUT_OCTAGONAL, 8},
-    {AV_CH_LAYOUT_HEXADECAGONAL, 16},
-    {AV_CH_LAYOUT_STEREO_DOWNMIX, 2},
-    {AV_CH_LAYOUT_22POINT2, 24}
-};
+static const map<SampleChannel, AudioChannelParam> gAudioChannelMap = {
+    {CH_LAYOUT_MONO, {AV_CH_LAYOUT_MONO, 1}},
+    {CH_LAYOUT_STEREO, {AV_CH_LAYOUT_STEREO, 2}},
+    {CH_LAYOUT_2POINT1, {AV_CH_LAYOUT_2POINT1, 3}},
+    {CH_LAYOUT_2_1, {AV_CH_LAYOUT_2_1, 3}},
+    {CH_LAYOUT_SURROUND, {AV_CH_LAYOUT_SURROUND, 3}},
+    {CH_LAYOUT_3POINT1, {AV_CH_LAYOUT_3POINT1, 4}},
+    {CH_LAYOUT_4POINT0, {AV_CH_LAYOUT_4POINT0, 4}},
+    {CH_LAYOUT_4POINT1, {AV_CH_LAYOUT_4POINT1, 5}},
+    {CH_LAYOUT_2_2, {AV_CH_LAYOUT_2_2, 4}},
+    {CH_LAYOUT_QUAD, {AV_CH_LAYOUT_QUAD, 4}},
+    {CH_LAYOUT_5POINT0, {AV_CH_LAYOUT_5POINT0, 5}},
+    {CH_LAYOUT_5POINT1, {AV_CH_LAYOUT_5POINT1, 6}},
+    {CH_LAYOUT_5POINT0_BACK, {AV_CH_LAYOUT_5POINT0_BACK, 5}},
+    {CH_LAYOUT_5POINT1_BACK, {AV_CH_LAYOUT_5POINT1_BACK, 6}},
+    {CH_LAYOUT_6POINT0, {AV_CH_LAYOUT_6POINT0, 6}},
+    {CH_LAYOUT_6POINT0, {AV_CH_LAYOUT_6POINT0_FRONT, 6}},
+    {CH_LAYOUT_HEXAGONAL, {AV_CH_LAYOUT_HEXAGONAL, 6}},
+    {CH_LAYOUT_6POINT1, {AV_CH_LAYOUT_6POINT1, 7}},
+    {CH_LAYOUT_6POINT1_BACK, {AV_CH_LAYOUT_6POINT1_BACK, 7}},
+    {CH_LAYOUT_6POINT1_FRONT, {AV_CH_LAYOUT_6POINT1_FRONT, 7}},
+    {CH_LAYOUT_7POINT0, {AV_CH_LAYOUT_7POINT0, 7}},
+    {CH_LAYOUT_7POINT0_FRONT, {AV_CH_LAYOUT_7POINT0_FRONT, 7}},
+    {CH_LAYOUT_7POINT1, {AV_CH_LAYOUT_7POINT1, 8}},
+    {CH_LAYOUT_7POINT1_WIDE, {AV_CH_LAYOUT_7POINT1_WIDE, 8}},
+    {CH_LAYOUT_7POINT1_WIDE_BACK, {AV_CH_LAYOUT_7POINT1_WIDE_BACK, 8}},
+    {CH_LAYOUT_OCTAGONAL, {AV_CH_LAYOUT_OCTAGONAL, 8}},
+    {CH_LAYOUT_HEXADECAGONAL, {AV_CH_LAYOUT_HEXADECAGONAL, 16}},
+    {CH_LAYOUT_STEREO_DOWNMIX, {AV_CH_LAYOUT_STEREO_DOWNMIX, 2}},
+    {CH_LAYOUT_22POINT2, {AV_CH_LAYOUT_22POINT2, 24}}};
 
-static enum AVSampleFormat gSampleFormat[] = {AV_SAMPLE_FMT_U8, AV_SAMPLE_FMT_S16, AV_SAMPLE_FMT_S32, AV_SAMPLE_FMT_FLT,
-                                              AV_SAMPLE_FMT_DBL};
+static const map<SampleFormat, AVSampleFormat> gSampleFormatMap = {{SAMPLE_FMT_U8, AV_SAMPLE_FMT_U8},
+                                                                   {SAMPLE_FMT_S16, AV_SAMPLE_FMT_S16},
+                                                                   {SAMPLE_FMT_S32, AV_SAMPLE_FMT_S32},
+                                                                   {SAMPLE_FMT_FLT, AV_SAMPLE_FMT_FLT},
+                                                                   {SAMPLE_FMT_DBL, AV_SAMPLE_FMT_DBL}};
 
-AudioStreamResampler::AudioStreamResampler(SampleRate rate, SampleFormat fmt, AudioChannel chl, SampleRate targetRate,
-                                           SampleFormat targetFmt, AudioChannel targetChl)
+AudioStreamResampler::AudioStreamResampler(SampleRate rate, SampleFormat fmt, SampleChannel chl, SampleRate targetRate,
+                                           SampleFormat targetFmt, SampleChannel targetChl)
     : m(new ResamplerPriv) {
     m->mRate = rate;
     m->mFmt = fmt;
@@ -119,8 +121,8 @@ AudioStreamResampler::AudioStreamResampler(SampleRate rate, SampleFormat fmt, Au
     do {
         LOG_D("swr_alloc_set_opts\n");
         m->mSwrCtx = swr_alloc_set_opts(
-            m->mSwrCtx, gAudioChannel[m->mTargetChl].channelMask, gSampleFormat[m->mTargetFmt], m->mTargetRate,
-            gAudioChannel[m->mChl].channelMask, gSampleFormat[m->mFmt], m->mRate, 0, nullptr);
+            m->mSwrCtx, gAudioChannelMap.at(m->mTargetChl).channelMask, gSampleFormatMap.at(m->mTargetFmt), m->mTargetRate,
+            gAudioChannelMap.at(m->mChl).channelMask, gSampleFormatMap.at(m->mFmt), m->mRate, 0, nullptr);
         // Speed up initialization.
         av_opt_set_int(m->mSwrCtx, "phase_shift", phase_shift, 0);
         LOG_I("SwrCtx phase shift is %ld\n", phase_shift);
@@ -141,10 +143,10 @@ AudioStreamResampler::AudioStreamResampler(SampleRate rate, SampleFormat fmt, Au
         }
 
         LOG_D("init param\n");
-        m->mBytesPerSample = av_get_bytes_per_sample(gSampleFormat[m->mFmt]);
-        m->mTargetBytesPerSample = av_get_bytes_per_sample(gSampleFormat[m->mTargetFmt]);
-        m->mChannelNb = gAudioChannel[m->mChl].channelNb;
-        m->mTargetChannelNb = gAudioChannel[m->mTargetChl].channelNb;
+        m->mBytesPerSample = av_get_bytes_per_sample(gSampleFormatMap.at(m->mFmt));
+        m->mTargetBytesPerSample = av_get_bytes_per_sample(gSampleFormatMap.at(m->mTargetFmt));
+        m->mChannelNb = gAudioChannelMap.at(m->mChl).channelNb;
+        m->mTargetChannelNb = gAudioChannelMap.at(m->mTargetChl).channelNb;
         LOG_D("ChannelNb[%d] TargetChannelNb[%d]\n", m->mChannelNb, m->mTargetChannelNb);
     } while (0);
     LOG_D("-\n");
